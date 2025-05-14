@@ -1,6 +1,10 @@
+#!/usr/bin/env node
+// ...existing code...
+
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
+const archiver = require('archiver');
 const app = express();
 
 const PORT = 3000;
@@ -26,16 +30,17 @@ app.get('/files', (req, res) => {
 	try {
 		const fullPath = path.join(__dirname, dir);
 
-		fs.readdir(fullPath, (err, files) => {
+		fs.readdir(fullPath, async (err, files) => {
 			if (err) {
 				return res.status(500).json({ error: 'Unable to read directory' });
 			}
 			const formattedFiles = [];
 			for (const file of files) {
+				const filePath = dir + '/' + file;
 				formattedFiles.push({
 					name: file,
-					isFolder: isFolder(file),
-					path: dir + file,
+					isFolder: await isFolder(filePath),
+					path: filePath,
 				});
 			}
 			res.json({ formattedFiles });
@@ -68,6 +73,45 @@ app.get('/file', (req, res) => {
 					.status(500)
 					.json({ error: 'Failed to download file', details: err.message });
 			}
+		});
+	} catch (err) {
+		res
+			.status(500)
+			.json({ error: 'An unexpected error occurred', details: err.message });
+	}
+});
+
+app.get('/folder', (req, res) => {
+	const folderPath = req.query.path;
+
+	if (!folderPath) {
+		return res.status(400).json({ error: 'Missing "path" query parameter' });
+	}
+
+	try {
+		const fullPath = path.join(__dirname, folderPath);
+
+		if (!fs.existsSync(fullPath) || !fs.statSync(fullPath).isDirectory()) {
+			return res.status(404).json({ error: 'Folder not found' });
+		}
+
+		const archive = archiver('zip', { zlib: { level: 9 } });
+
+		res.setHeader('Content-Type', 'application/zip');
+		res.setHeader(
+			'Content-Disposition',
+			`attachment; filename="${path.basename(folderPath)}.zip"`
+		);
+
+		archive.directory(fullPath, false);
+		archive.pipe(res);
+
+		archive.finalize();
+
+		archive.on('error', err => {
+			res
+				.status(500)
+				.json({ error: 'Failed to archive folder', details: err.message });
 		});
 	} catch (err) {
 		res

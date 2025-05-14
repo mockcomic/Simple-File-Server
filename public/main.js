@@ -1,63 +1,73 @@
 let dir = './';
 
 const filesListSelector = document.getElementById('file-list');
+const API_BASE = 'http://localhost:3000';
 
-async function getFiles(dir) {
+async function fetchJSON(url) {
 	try {
-		const response = await fetch(`http://localhost:3000/files?dir=${dir}`);
-		if (!response.ok) {
-			throw new Error(`HTTP error! status: ${response.status}`);
-		}
-		const data = await response.json();
-		return data;
+		const response = await fetch(url);
+		if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+		return await response.json();
 	} catch (error) {
-		console.error('Error fetching files:', error);
+		console.error('Fetch error:', error);
+		return null;
 	}
 }
 
+async function getFiles(dir) {
+	return fetchJSON(`${API_BASE}/files?dir=${encodeURIComponent(dir)}`);
+}
+
+async function getFolder() {
+	return fetchJSON(`${API_BASE}/folder?dir=${encodeURIComponent(dir)}`);
+}
+
 function renderFile(file) {
-	if (filesListSelector) {
-		const row = document.createElement('div');
-		const text = document.createElement('a');
+	const row = document.createElement('div');
+	const link = document.createElement('a');
+	link.textContent = file.name;
 
-		text.innerHTML = file.name;
-
-		if (file.isFolder) {
-			text.addEventListener('click', ev => {
-				if (!dir.endsWith('/')) {
-					dir = dir + '/';
-				}
-
-				dir = dir + ev.target.innerHTML;
-				renderList();
-			});
-		} else {
-			text.href = `http://localhost:3000/file?path=${file.path}`;
-			text.download = file;
-		}
-
-		row.append(text);
-		filesListSelector.append(row);
+	if (file.isFolder) {
+		link.href = '#';
+		link.addEventListener('click', ev => {
+			ev.preventDefault();
+			dir = dir.endsWith('/') ? dir : dir + '/';
+			dir += file.name;
+			renderList();
+		});
 	} else {
-		window.alert('Error getting file-list selector');
+		link.href = `${API_BASE}/file?path=${encodeURIComponent(file.path)}`;
+		link.download = file.name;
 	}
+
+	row.append(link);
+	filesListSelector.append(row);
+}
+
+function renderDirHeader() {
+	const dirHeader = document.createElement('div');
+	const dirHeaderText = document.createElement('a');
+	dirHeaderText.textContent = dir;
+	dirHeaderText.href = '#';
+	dirHeaderText.addEventListener('click', ev => {
+		ev.preventDefault();
+		if (dir !== './') {
+			dir = dir.slice(0, dir.lastIndexOf('/')) || './';
+			renderList();
+		}
+	});
+	dirHeader.append(dirHeaderText);
+	filesListSelector.append(dirHeader);
 }
 
 async function renderList() {
 	filesListSelector.innerHTML = '';
+	if (dir === '.') dir = './';
 
-	const dirHeader = document.createElement('div');
-	const dirtHeaderText = document.createElement('a');
-	dirHeader.addEventListener('click', () => {
-		dir = dir.slice(0, dir.lastIndexOf('/') + 1);
-		renderList();
-	});
-
-	dirtHeaderText.innerHTML = dir;
-	dirHeader.append(dirtHeaderText);
-	filesListSelector.append(dirHeader);
+	renderDirHeader();
 
 	const data = await getFiles(dir);
+	if (!data || !Array.isArray(data.formattedFiles)) return;
 
 	for (const file of data.formattedFiles) {
 		renderFile(file);
