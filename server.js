@@ -5,20 +5,45 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const archiver = require('archiver');
+const cors = require('cors');
+const os = require('os');
 const app = express();
+const ejs = require('ejs');
 
 const PORT = 3000;
 
-const isFolder = async filePath => {
+function get192LanIP() {
+	const nets = os.networkInterfaces();
+	for (const iface of Object.values(nets)) {
+		for (const config of iface) {
+			if (
+				config.family === 'IPv4' &&
+				!config.internal &&
+				config.address.startsWith('192.168.')
+			) {
+				return config.address;
+			}
+		}
+	}
+	return null;
+}
+
+async function isFolder(filePath) {
 	try {
 		const stats = fs.statSync(filePath);
 		return await stats.isDirectory();
 	} catch (err) {
 		return false;
 	}
-};
+}
+
+app.use(cors({ origin: false }));
 
 app.use(express.static(path.join(__dirname, 'public')));
+app.set('views', path.join(__dirname, 'public'));
+
+app.engine('html', ejs.renderFile);
+app.set('view engine', 'html');
 
 app.get('/files', (req, res) => {
 	const dir = req.query.dir;
@@ -28,7 +53,8 @@ app.get('/files', (req, res) => {
 	}
 
 	try {
-		const fullPath = path.join(__dirname, dir);
+		const baseDir = path.dirname(process.execPath);
+		const fullPath = path.join(baseDir, dir);
 
 		fs.readdir(fullPath, async (err, files) => {
 			if (err) {
@@ -60,7 +86,7 @@ app.get('/file', (req, res) => {
 	}
 
 	try {
-		const fullPath = path.join(__dirname, filePath);
+		const fullPath = path.join(baseDir, filePath);
 
 		if (!fs.existsSync(fullPath)) {
 			return res.status(404).json({ error: 'File not found' });
@@ -89,7 +115,7 @@ app.get('/folder', (req, res) => {
 	}
 
 	try {
-		const fullPath = path.join(__dirname, folderPath);
+		const fullPath = path.join(baseDir, folderPath);
 
 		if (!fs.existsSync(fullPath) || !fs.statSync(fullPath).isDirectory()) {
 			return res.status(404).json({ error: 'Folder not found' });
@@ -121,5 +147,7 @@ app.get('/folder', (req, res) => {
 });
 
 app.listen(PORT, () => {
-	console.log(`Server is running on http://localhost:${PORT}`);
+	const lanIP = get192LanIP() || '127.0.0.1';
+	console.log(`Local:   http://localhost:${PORT}`);
+	console.log(`Network: http://${lanIP}:${PORT}`);
 });

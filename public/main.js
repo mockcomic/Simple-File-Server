@@ -1,7 +1,18 @@
 let dir = './';
+const baseUrl = getIpFromUrl(window.location.href);
+
+function getIpFromUrl(url) {
+	try {
+		const { hostname } = new URL(url);
+		return hostname;
+	} catch (e) {
+		console.error('Invalid URL:', url);
+		return null;
+	}
+}
 
 const filesListSelector = document.getElementById('file-list');
-const API_BASE = 'http://localhost:3000';
+const API_BASE = `http://${baseUrl}:3000`;
 
 async function fetchJSON(url) {
 	try {
