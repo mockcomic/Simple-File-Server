@@ -9,6 +9,7 @@ const cors = require('cors');
 const os = require('os');
 const app = express();
 const ejs = require('ejs');
+const multer = require('multer');
 
 const PORT = 3000;
 
@@ -92,7 +93,6 @@ app.get('/file', (req, res) => {
 			return res.status(404).json({ error: 'File not found' });
 		}
 
-		// Use res.download to send the file for download
 		res.download(fullPath, err => {
 			if (err) {
 				res
@@ -108,42 +108,64 @@ app.get('/file', (req, res) => {
 });
 
 app.get('/folder', (req, res) => {
-	const folderPath = req.query.path;
-
-	if (!folderPath) {
+	const folder = req.query.path;
+	if (!folder) {
 		return res.status(400).json({ error: 'Missing "path" query parameter' });
 	}
 
-	try {
-		const fullPath = path.join(baseDir, folderPath);
+	const baseDir = path.dirname(process.execPath);
+	const fullPath = path.join(baseDir, folder);
 
-		if (!fs.existsSync(fullPath) || !fs.statSync(fullPath).isDirectory()) {
-			return res.status(404).json({ error: 'Folder not found' });
-		}
+	if (!fs.existsSync(fullPath) || !fs.statSync(fullPath).isDirectory()) {
+		return res.status(404).json({ error: 'Folder not found' });
+	}
 
-		const archive = archiver('zip', { zlib: { level: 9 } });
+	res.setHeader('Content-Type', 'application/zip');
+	res.setHeader(
+		'Content-Disposition',
+		`attachment; filename="${path.basename(folder)}.zip"`
+	);
 
-		res.setHeader('Content-Type', 'application/zip');
-		res.setHeader(
-			'Content-Disposition',
-			`attachment; filename="${path.basename(folderPath)}.zip"`
-		);
-
-		archive.directory(fullPath, false);
-		archive.pipe(res);
-
-		archive.finalize();
-
-		archive.on('error', err => {
+	const archive = archiver('zip', { zlib: { level: 9 } });
+	archive.on('error', err => {
+		console.error('Archive error:', err);
+		if (!res.headersSent) {
 			res
 				.status(500)
 				.json({ error: 'Failed to archive folder', details: err.message });
-		});
-	} catch (err) {
-		res
-			.status(500)
-			.json({ error: 'An unexpected error occurred', details: err.message });
-	}
+		} else {
+			res.end();
+		}
+	});
+
+	archive.pipe(res);
+	archive.directory(fullPath, false);
+	archive.finalize();
+});
+
+app.post('/upload', (req, res) => {
+	const baseDir = path.dirname(process.execPath);
+	const storage = multer.diskStorage({
+		destination: (req, file, cb) => {
+			const uploadDir = path.join(baseDir, req.query.dir || '');
+			fs.mkdirSync(uploadDir, { recursive: true });
+			cb(null, uploadDir);
+		},
+		filename: (req, file, cb) => {
+			cb(null, file.originalname);
+		},
+	});
+	const upload = multer({ storage }).single('file');
+
+	upload(req, res, err => {
+		if (err) {
+			console.error('Multer upload error:', err);
+			return res
+				.status(500)
+				.json({ error: 'Upload failed', details: err.message });
+		}
+		res.json({ success: true, filename: req.file.originalname });
+	});
 });
 
 app.listen(PORT, () => {

@@ -25,18 +25,76 @@ async function fetchJSON(url) {
 	}
 }
 
+async function uploadFile() {
+	const formData = new FormData();
+	const fileInput = document.getElementById('file-input');
+	const file = fileInput.files[0];
+
+	formData.append('file', file);
+	formData.append('dir', dir);
+
+	try {
+		const response = await fetch(`${API_BASE}/upload`, {
+			method: 'POST',
+			body: formData,
+		});
+		if (!response.ok) throw new Error(`Upload failed: ${response.statusText}`);
+		alert('File uploaded successfully!');
+		renderList();
+	} catch (error) {
+		console.error('Upload error:', error);
+		alert('File upload failed: ' + error.message);
+	}
+}
+
 async function getFiles(dir) {
 	return fetchJSON(`${API_BASE}/files?dir=${encodeURIComponent(dir)}`);
 }
 
 async function getFolder() {
-	return fetchJSON(`${API_BASE}/folder?dir=${encodeURIComponent(dir)}`);
+	if (!dir) {
+		return alert('Please enter a folder path');
+	}
+
+	try {
+		const res = await fetch(`/folder?path=${encodeURIComponent(dir)}`);
+		if (!res.ok) {
+			// If server sent JSON error, parse text for debugging
+			const text = await res.text();
+			throw new Error(text);
+		}
+
+		// Pull out the binary as a Blob
+		const blob = await res.blob();
+		const url = window.URL.createObjectURL(blob);
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = `${dir}.zip`;
+		document.body.appendChild(a);
+		a.click();
+		a.remove();
+		window.URL.revokeObjectURL(url);
+	} catch (err) {
+		console.error(err);
+		alert('Download failed: ' + err.message);
+	}
 }
 
 function renderFile(file) {
 	const row = document.createElement('div');
 	const link = document.createElement('a');
+	const span = document.createElement('span');
+	const icon = document.createElement('i');
+
+	row.className = 'is-flex is-align-items-center';
+	span.className = 'icon';
+	icon.className = 'fas fa-file';
+
 	link.textContent = file.name;
+	if (file.isFolder) {
+		icon.className = 'fas fa-folder';
+	} else {
+	}
 
 	if (file.isFolder) {
 		link.href = '#';
@@ -51,6 +109,9 @@ function renderFile(file) {
 		link.download = file.name;
 	}
 
+	span.append(icon);
+
+	row.append(span);
 	row.append(link);
 	filesListSelector.append(row);
 }
@@ -84,5 +145,10 @@ async function renderList() {
 		renderFile(file);
 	}
 }
+
+document.getElementById('file-input').addEventListener('change', event => {
+	const fileName = event.target.files[0]?.name || 'No file selected';
+	document.getElementById('file-name').textContent = fileName;
+});
 
 renderList();

@@ -4,36 +4,88 @@
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 		<title>Simple File Server</title>
+
 		<link
 			rel="stylesheet"
 			href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css"
 		/>
+		<link
+			rel="stylesheet"
+			href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css"
+			integrity="sha512-z3gLpd7yknf1YoNbCzqRKc4qyor8gaKU1qmn+CShxbuBusANI9QpRohGBreCFkKxLhei6S9CQXFEbbKuqLg0DA=="
+			crossorigin="anonymous"
+			referrerpolicy="no-referrer"
+		/>
+		<link rel="stylesheet" href="./styles.css" />
 	</head>
 	<body>
 		<section class="section">
 			<div class="container">
-				<h1 class="title has-text-centered">
-					Welcome to the Simple File Server
-				</h1>
-				<div id="file-upload" class="box">
-					<div class="field is-grouped">
-						<div class="control">
-							<input class="input" type="file" id="file-input" />
-						</div>
-						<div class="control">
-							<button class="button is-primary" id="upload-button">
-								Upload
-							</button>
+				<div class="columns is-centered">
+					<div class="column is-half">
+						<div class="box">
+							<h1 class="title has-text-centered mb-6">
+								Welcome to the Simple File Server
+							</h1>
+							<div class="field">
+								<div class="file has-name is-boxed is-fullwidth">
+									<label class="file-label">
+										<input
+											class="file-input"
+											type="file"
+											id="file-input"
+											name="file-input"
+										/>
+										<span class="file-cta">
+											<span class="icon is-small">
+												<i class="fas fa-upload"></i>
+											</span>
+											<span class="file-label"> Choose a file… </span>
+										</span>
+										<span class="file-name" id="file-name">
+											No file selected
+										</span>
+									</label>
+								</div>
+							</div>
+
+							<div
+								class="field is-grouped is-justify-content-space-between mt-4"
+							>
+								<p class="control">
+									<button
+										class="button is-primary"
+										id="upload-button"
+										onclick="uploadFile()"
+									>
+										<span class="icon">
+											<i class="fas fa-cloud-arrow-up"></i>
+										</span>
+										<span>Upload</span>
+									</button>
+								</p>
+								<p class="control">
+									<button
+										class="button is-link"
+										id="download-folder-button"
+										onclick="getFolder()"
+									>
+										<span class="icon">
+											<i class="fas fa-cloud-arrow-down"></i>
+										</span>
+										<span>Download Folder</span>
+									</button>
+								</p>
+							</div>
+
+							<hr />
+
+							<div class="content">
+								<h2 class="subtitle is-5">Files on Server</h2>
+								<ul id="file-list" class="menu-list"></ul>
+							</div>
 						</div>
 					</div>
-					<button
-						class="button is-link"
-						id="download-folder-button"
-						onclick="getFolder()"
-					>
-						Download Folder
-					</button>
-					<ul id="file-list" class="mt-4"></ul>
 				</div>
 			</div>
 		</section>
