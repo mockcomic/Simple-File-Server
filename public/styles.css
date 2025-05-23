@@ -1,3 +1,58 @@
 html {
 	background: url('./assets/boxed-bg-dark.png') repeat;
 }
+
+.notification-pop {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	position: fixed;
+	top: 20px;
+	left: 50%;
+	transform: translateX(-50%);
+	z-index: 1000;
+	animation: popBounce 0.7s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+	max-width: 90vw;
+	width: auto;
+	padding: 0.75rem 1.25rem;
+	box-sizing: border-box;
+	word-wrap: break-word;
+}
+
+.hide {
+	display: none;
+}
+
+.show {
+	display: block;
+}
+
+@keyframes popBounce {
+	0% {
+		transform: scale(0.5) translate(-50%, 100px);
+		opacity: 0;
+	}
+	60% {
+		transform: scale(1.1) translate(-50%, -10px);
+		opacity: 1;
+	}
+	80% {
+		transform: scale(0.95) translate(-50%, 5px);
+	}
+	100% {
+		transform: scale(1) translate(-50%, 0);
+	}
+}
+
+@media (max-width: 480px) {
+	.notification-pop {
+		width: 95%;
+		left: 50%;
+		transform: translateX(-50%);
+	}
+}
+
+.notification-pop .notification-content {
+	display: flex;
+	align-items: center;
+}

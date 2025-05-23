@@ -1,5 +1,33 @@
 let dir = './';
 const baseUrl = getIpFromUrl(window.location.href);
+const notificationSelector = document.getElementById('notification');
+const filesListSelector = document.getElementById('file-list');
+const fileInput = document.getElementById('file-input');
+
+const API_BASE = `http://${baseUrl}:3000`;
+
+document.getElementById('file-input').addEventListener('change', event => {
+	const fileName = event.target.files[0]?.name || 'No file selected';
+	document.getElementById('file-name').textContent = fileName;
+});
+
+function notification(text, type) {
+	const timer = 5000;
+
+	notificationSelector.textContent = text;
+	notificationSelector.classList.toggle(
+		'has-background-danger',
+		type === 'error'
+	);
+	notificationSelector.classList.remove('hide');
+	notificationSelector.classList.add('show', 'notification-pop');
+
+	clearTimeout(notificationSelector._notifTimeout);
+	notificationSelector._notifTimeout = setTimeout(() => {
+		notificationSelector.classList.add('hide');
+		notificationSelector.classList.remove('show', 'notification-pop');
+	}, timer);
+}
 
 function getIpFromUrl(url) {
 	try {
@@ -10,9 +38,6 @@ function getIpFromUrl(url) {
 		return null;
 	}
 }
-
-const filesListSelector = document.getElementById('file-list');
-const API_BASE = `http://${baseUrl}:3000`;
 
 async function fetchJSON(url) {
 	try {
@@ -27,11 +52,14 @@ async function fetchJSON(url) {
 
 async function uploadFile() {
 	const formData = new FormData();
-	const fileInput = document.getElementById('file-input');
 	const file = fileInput.files[0];
 
 	formData.append('file', file);
 	formData.append('dir', dir);
+
+	if (file == null) {
+		return notification('Select a file', 'error');
+	}
 
 	try {
 		const response = await fetch(`${API_BASE}/upload`, {
@@ -39,11 +67,11 @@ async function uploadFile() {
 			body: formData,
 		});
 		if (!response.ok) throw new Error(`Upload failed: ${response.statusText}`);
-		alert('File uploaded successfully!');
+		notification('File uploaded successfully!');
 		renderList();
 	} catch (error) {
 		console.error('Upload error:', error);
-		alert('File upload failed: ' + error.message);
+		notification('File upload failed: ' + error.message, 'error');
 	}
 }
 
@@ -53,8 +81,10 @@ async function getFiles(dir) {
 
 async function getFolder() {
 	if (!dir) {
-		return alert('Please enter a folder path');
+		return notification('Please enter a folder path', error);
 	}
+
+	notification('Creating zip file, please wait....');
 
 	try {
 		const res = await fetch(`/folder?path=${encodeURIComponent(dir)}`);
@@ -76,7 +106,7 @@ async function getFolder() {
 		window.URL.revokeObjectURL(url);
 	} catch (err) {
 		console.error(err);
-		alert('Download failed: ' + err.message);
+		notification('Download failed: ' + err.message, 'error');
 	}
 }
 
@@ -145,10 +175,5 @@ async function renderList() {
 		renderFile(file);
 	}
 }
-
-document.getElementById('file-input').addEventListener('change', event => {
-	const fileName = event.target.files[0]?.name || 'No file selected';
-	document.getElementById('file-name').textContent = fileName;
-});
 
 renderList();
