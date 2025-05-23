@@ -144,10 +144,6 @@ app.get('/folder', (req, res) => {
 });
 
 app.post('/upload', (req, res) => {
-	if (!req.file) {
-		return res.status(400).json({ error: 'No file uploaded' });
-	}
-
 	const baseDir = path.dirname(process.execPath);
 	const storage = multer.diskStorage({
 		destination: (req, file, cb) => {
