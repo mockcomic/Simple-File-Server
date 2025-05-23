@@ -1,16 +1,14 @@
-#!/usr/bin/env node
-// ...existing code...
-
+const baseDir = process.cwd();
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const archiver = require('archiver');
 const cors = require('cors');
 const os = require('os');
-const app = express();
 const ejs = require('ejs');
 const multer = require('multer');
 
+const app = express();
 const PORT = 3000;
 
 function get192LanIP() {
@@ -32,90 +30,65 @@ function get192LanIP() {
 async function isFolder(filePath) {
 	try {
 		const stats = fs.statSync(filePath);
-		return await stats.isDirectory();
+		return stats.isDirectory();
 	} catch (err) {
 		return false;
 	}
 }
 
-app.use(cors({ origin: false }));
-
+app.use(cors());
 app.use(express.static(path.join(__dirname, 'public')));
 app.set('views', path.join(__dirname, 'public'));
-
 app.engine('html', ejs.renderFile);
 app.set('view engine', 'html');
 
 app.get('/files', (req, res) => {
 	const dir = req.query.dir;
-
-	if (!dir) {
+	if (!dir)
 		return res.status(400).json({ error: 'Missing "dir" query parameter' });
-	}
 
-	try {
-		const baseDir = path.dirname(process.execPath);
-		const fullPath = path.join(baseDir, dir);
+	const fullPath = path.join(baseDir, dir);
+	fs.readdir(fullPath, async (err, files) => {
+		if (err) return res.status(500).json({ error: 'Unable to read directory' });
 
-		fs.readdir(fullPath, async (err, files) => {
-			if (err) {
-				return res.status(500).json({ error: 'Unable to read directory' });
-			}
-			const formattedFiles = [];
-			for (const file of files) {
-				const filePath = dir + '/' + file;
-				formattedFiles.push({
-					name: file,
-					isFolder: await isFolder(filePath),
-					path: filePath,
-				});
-			}
-			res.json({ formattedFiles });
-		});
-	} catch (err) {
-		res
-			.status(500)
-			.json({ error: 'An unexpected error occurred', details: err.message });
-	}
+		const formattedFiles = [];
+		for (const file of files) {
+			const filePath = path.join(dir, file);
+			formattedFiles.push({
+				name: file,
+				isFolder: await isFolder(path.join(baseDir, filePath)),
+				path: filePath,
+			});
+		}
+		res.json({ formattedFiles });
+	});
 });
 
 app.get('/file', (req, res) => {
 	const filePath = req.query.path;
-
-	if (!filePath) {
+	if (!filePath)
 		return res.status(400).json({ error: 'Missing "path" query parameter' });
+
+	const fullPath = path.join(baseDir, filePath);
+	if (!fs.existsSync(fullPath)) {
+		return res.status(404).json({ error: 'File not found' });
 	}
 
-	try {
-		const fullPath = path.join(baseDir, filePath);
-
-		if (!fs.existsSync(fullPath)) {
-			return res.status(404).json({ error: 'File not found' });
+	res.download(fullPath, err => {
+		if (err) {
+			res
+				.status(500)
+				.json({ error: 'Failed to download file', details: err.message });
 		}
-
-		res.download(fullPath, err => {
-			if (err) {
-				res
-					.status(500)
-					.json({ error: 'Failed to download file', details: err.message });
-			}
-		});
-	} catch (err) {
-		res
-			.status(500)
-			.json({ error: 'An unexpected error occurred', details: err.message });
-	}
+	});
 });
 
 app.get('/folder', (req, res) => {
 	const folder = req.query.path;
-	if (!folder) {
+	if (!folder)
 		return res.status(400).json({ error: 'Missing "path" query parameter' });
-	}
 
-	const baseDir = path.dirname(process.execPath);
 	const fullPath = path.join(baseDir, folder);
-
 	if (!fs.existsSync(fullPath) || !fs.statSync(fullPath).isDirectory()) {
 		return res.status(404).json({ error: 'Folder not found' });
 	}
@@ -144,7 +117,6 @@ app.get('/folder', (req, res) => {
 });
 
 app.post('/upload', (req, res) => {
-	const baseDir = path.dirname(process.execPath);
 	const storage = multer.diskStorage({
 		destination: (req, file, cb) => {
 			const uploadDir = path.join(baseDir, req.query.dir || '');

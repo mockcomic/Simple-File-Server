@@ -1,19 +1,17 @@
 let dir = './';
-const baseUrl = getIpFromUrl(window.location.href);
 const notificationSelector = document.getElementById('notification');
 const filesListSelector = document.getElementById('file-list');
 const fileInput = document.getElementById('file-input');
+const API_BASE = `http://${new URL(window.location.href).hostname}:3000`;
 
-const API_BASE = `http://${baseUrl}:3000`;
-
-document.getElementById('file-input').addEventListener('change', event => {
-	const fileName = event.target.files[0]?.name || 'No file selected';
-	document.getElementById('file-name').textContent = fileName;
-});
+function clearFileList() {
+	while (filesListSelector.firstChild) {
+		filesListSelector.removeChild(filesListSelector.firstChild);
+	}
+}
 
 function notification(text, type) {
 	const timer = 5000;
-
 	notificationSelector.textContent = text;
 	notificationSelector.classList.toggle(
 		'has-background-danger',
@@ -21,7 +19,6 @@ function notification(text, type) {
 	);
 	notificationSelector.classList.remove('hide');
 	notificationSelector.classList.add('show', 'notification-pop');
-
 	clearTimeout(notificationSelector._notifTimeout);
 	notificationSelector._notifTimeout = setTimeout(() => {
 		notificationSelector.classList.add('hide');
@@ -29,109 +26,91 @@ function notification(text, type) {
 	}, timer);
 }
 
-function getIpFromUrl(url) {
-	try {
-		const { hostname } = new URL(url);
-		return hostname;
-	} catch (e) {
-		console.error('Invalid URL:', url);
-		return null;
-	}
-}
-
 async function fetchJSON(url) {
-	try {
-		const response = await fetch(url);
-		if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-		return await response.json();
-	} catch (error) {
-		console.error('Fetch error:', error);
-		return null;
-	}
+	const res = await fetch(url);
+	if (!res.ok) throw new Error(`HTTP ${res.status}`);
+	return await res.json();
 }
 
-async function uploadFile() {
-	const formData = new FormData();
+async function uploadFile(event) {
 	const file = fileInput.files[0];
+	if (!file) return notification('Select a file', 'error');
 
+	const formData = new FormData();
 	formData.append('file', file);
-	formData.append('dir', dir);
-
-	if (file == null) {
-		return notification('Select a file', 'error');
-	}
 
 	try {
-		const response = await fetch(`${API_BASE}/upload`, {
-			method: 'POST',
-			body: formData,
-		});
-		if (!response.ok) throw new Error(`Upload failed: ${response.statusText}`);
+		const res = await fetch(
+			`${API_BASE}/upload?dir=${encodeURIComponent(dir)}`,
+			{ method: 'POST', body: formData }
+		);
+		if (!res.ok) throw new Error(res.statusText);
+
 		notification('File uploaded successfully!');
-		renderList();
-	} catch (error) {
-		console.error('Upload error:', error);
-		notification('File upload failed: ' + error.message, 'error');
+		await renderList();
+	} catch (err) {
+		console.error(err);
+		notification('Upload failed: ' + err.message, 'error');
 	}
 }
 
 async function getFiles(dir) {
-	return fetchJSON(`${API_BASE}/files?dir=${encodeURIComponent(dir)}`);
+	return await fetchJSON(`${API_BASE}/files?dir=${encodeURIComponent(dir)}`);
 }
 
 async function getFolder() {
-	if (!dir) {
-		return notification('Please enter a folder path', error);
-	}
-
-	notification('Creating zip file, please wait....');
-
 	try {
-		const res = await fetch(`/folder?path=${encodeURIComponent(dir)}`);
-		if (!res.ok) {
-			// If server sent JSON error, parse text for debugging
-			const text = await res.text();
-			throw new Error(text);
-		}
+		notification('Creating zip file, please wait....');
+		const res = await fetch(
+			`${API_BASE}/folder?path=${encodeURIComponent(dir)}`
+		);
+		if (!res.ok) throw new Error(await res.text());
 
-		// Pull out the binary as a Blob
 		const blob = await res.blob();
-		const url = window.URL.createObjectURL(blob);
+		const url = URL.createObjectURL(blob);
 		const a = document.createElement('a');
 		a.href = url;
 		a.download = `${dir}.zip`;
 		document.body.appendChild(a);
 		a.click();
 		a.remove();
-		window.URL.revokeObjectURL(url);
+		URL.revokeObjectURL(url);
 	} catch (err) {
 		console.error(err);
 		notification('Download failed: ' + err.message, 'error');
 	}
 }
 
+function renderDirHeader() {
+	const header = document.createElement('div');
+	const link = document.createElement('a');
+	link.textContent = dir;
+	link.href = '#';
+	link.addEventListener('click', ev => {
+		ev.preventDefault();
+		if (dir !== './') {
+			dir = dir.slice(0, dir.lastIndexOf('/')) || './';
+			renderList();
+		}
+	});
+	header.appendChild(link);
+	filesListSelector.appendChild(header);
+}
+
 function renderFile(file) {
 	const row = document.createElement('div');
-	const link = document.createElement('a');
-	const span = document.createElement('span');
-	const icon = document.createElement('i');
-
 	row.className = 'is-flex is-align-items-center';
-	span.className = 'icon';
-	icon.className = 'fas fa-file';
 
+	const icon = document.createElement('i');
+	icon.className = file.isFolder ? 'fas fa-folder' : 'fas fa-file';
+
+	const link = document.createElement('a');
 	link.textContent = file.name;
-	if (file.isFolder) {
-		icon.className = 'fas fa-folder';
-	} else {
-	}
-
 	if (file.isFolder) {
 		link.href = '#';
 		link.addEventListener('click', ev => {
 			ev.preventDefault();
-			dir = dir.endsWith('/') ? dir : dir + '/';
-			dir += file.name;
+			dir = (dir.endsWith('/') ? dir : dir + '/') + file.name;
 			renderList();
 		});
 	} else {
@@ -139,41 +118,30 @@ function renderFile(file) {
 		link.download = file.name;
 	}
 
-	span.append(icon);
+	const span = document.createElement('span');
+	span.className = 'icon';
+	span.appendChild(icon);
 
-	row.append(span);
-	row.append(link);
-	filesListSelector.append(row);
-}
-
-function renderDirHeader() {
-	const dirHeader = document.createElement('div');
-	const dirHeaderText = document.createElement('a');
-	dirHeaderText.textContent = dir;
-	dirHeaderText.href = '#';
-	dirHeaderText.addEventListener('click', ev => {
-		ev.preventDefault();
-		if (dir !== './') {
-			dir = dir.slice(0, dir.lastIndexOf('/')) || './';
-			renderList();
-		}
-	});
-	dirHeader.append(dirHeaderText);
-	filesListSelector.append(dirHeader);
+	row.append(span, link);
+	filesListSelector.appendChild(row);
 }
 
 async function renderList() {
-	filesListSelector.innerHTML = '';
+	clearFileList();
 	if (dir === '.') dir = './';
-
 	renderDirHeader();
 
-	const data = await getFiles(dir);
-	if (!data || !Array.isArray(data.formattedFiles)) return;
+	try {
+		const data = await getFiles(dir);
+		if (!data?.formattedFiles) return;
 
-	for (const file of data.formattedFiles) {
-		renderFile(file);
+		data.formattedFiles.forEach(renderFile);
+	} catch (err) {
+		console.error(err);
+		notification('Could not load file list', 'error');
 	}
 }
+
+document.getElementById('upload-button').addEventListener('click', uploadFile);
 
 renderList();
